@@ -1,5 +1,5 @@
 import './style.css';
-import './FeedbackWidget';
+import { FeedbackWidget } from './FeedbackWidget';
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div class="container">
@@ -91,7 +91,19 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         </table>
       </section>
     </div>
-
-    <feedback-widget></feedback-widget>
   </div>
 `;
+
+// Create and configure the widget
+const widget = new FeedbackWidget();
+widget.setAttribute('config', JSON.stringify({
+    position: 'bottom-right',
+    theme: {
+        primaryColor: '#4F46E5',
+        buttonText: 'Feedback',
+        modalTitle: 'Send Feedback'
+    }
+}));
+
+// Add it to the app div
+document.getElementById('app')?.appendChild(widget);

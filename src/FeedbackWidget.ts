@@ -36,7 +36,7 @@ export class FeedbackWidget extends HTMLElement {
     return ['config'];
   }
 
-  attributeChangedCallback(name: string, _oldValue: string, newValue: string) {
+  attributeChangedCallback(name: string, _oldValue: string, _newValue: string) {
     if (name === 'config') {
       this.loadConfig();
       this.render();
