@@ -32,6 +32,17 @@ export class FeedbackWidget extends HTMLElement {
     }
   };
 
+  static get observedAttributes() {
+    return ['config'];
+  }
+
+  attributeChangedCallback(name: string, _oldValue: string, newValue: string) {
+    if (name === 'config') {
+      this.loadConfig();
+      this.render();
+    }
+  }
+
   constructor() {
     super();
     this.shadow = this.attachShadow({ mode: 'open' });
@@ -45,7 +56,14 @@ export class FeedbackWidget extends HTMLElement {
     if (configAttr) {
       try {
         const userConfig = JSON.parse(configAttr);
-        this.config = { ...this.config, ...userConfig };
+        this.config = {
+          ...this.config,
+          ...userConfig,
+          theme: {
+            ...this.config.theme,
+            ...(userConfig.theme || {})
+          }
+        };
       } catch (e) {
         console.error('Invalid config format:', e);
       }

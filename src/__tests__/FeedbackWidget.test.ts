@@ -1,14 +1,18 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { FeedbackWidget } from '../FeedbackWidget';
 
 describe('FeedbackWidget', () => {
+  let widget: FeedbackWidget;
+
+  beforeEach(() => {
+    widget = new FeedbackWidget();
+  });
+
   it('should initialize with default config', () => {
-    const widget = new FeedbackWidget();
     expect(widget).toBeDefined();
   });
 
   it('should handle config updates', () => {
-    const widget = new FeedbackWidget();
     const config = {
       position: 'top-right',
       theme: {
@@ -25,5 +29,9 @@ describe('FeedbackWidget', () => {
 
   it('should submit feedback', async () => {
     // Add feedback submission tests
+  });
+
+  it('should initialize closed', () => {
+    expect(widget.isOpen).toBe(false);
   });
 }); 
