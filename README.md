@@ -1,5 +1,9 @@
 # BackSlap Feedback Widget
 
+[![CI](https://github.com/FacundoLucci/backslap/actions/workflows/ci.yml/badge.svg)](https://github.com/FacundoLucci/backslap/actions/workflows/ci.yml)
+[![npm version](https://badge.fury.io/js/backslap.svg)](https://badge.fury.io/js/backslap)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A lightweight, customizable feedback widget that captures user feedback and screenshots. Built with Web Components for framework-agnostic usage. Available as both an open-source widget and a hosted platform solution.
 
 ## Features
@@ -125,6 +129,42 @@ npm run lint
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+Please read our [Contributing Guide](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/FacundoLucci/backslap.git
+cd backslap
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+### Testing
+
+We use Jest for testing. Run the test suite with:
+
+```bash
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm test -- --watch
+
+# Generate coverage report
+npm run test:coverage
+```
+
+Please ensure all tests pass and add new tests for any new features.
 
 ## License
 
