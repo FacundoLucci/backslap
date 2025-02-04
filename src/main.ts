@@ -1,5 +1,5 @@
-import './style.css'
-import './FeedbackWidget'
+import './style.css';
+import './FeedbackWidget';
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div class="container">
@@ -94,4 +94,4 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 
     <feedback-widget></feedback-widget>
   </div>
-`
+`;

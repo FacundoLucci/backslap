@@ -7,7 +7,7 @@ export interface FeedbackConfig {
     buttonText?: string;
     modalTitle?: string;
   };
-  onSubmit?: (feedback: FeedbackData) => Promise<void>;
+  onSubmit?: (_feedback: FeedbackData) => Promise<void>;
 }
 
 export interface FeedbackData {
