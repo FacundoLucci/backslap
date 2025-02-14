@@ -9,6 +9,7 @@ export interface FeedbackWidgetConfig {
     modalTitle?: string;
   };
   onSubmit?: (_feedback: FeedbackData) => Promise<void>;
+  defaultFullPage?: boolean;
 }
 
 export interface FeedbackData {
@@ -31,6 +32,7 @@ export class FeedbackWidget extends HTMLElement {
       modalTitle: 'Send Feedback'
     }
   };
+  private isFullPage: boolean = false;
 
   static get observedAttributes() {
     return ['config'];
@@ -51,7 +53,6 @@ export class FeedbackWidget extends HTMLElement {
   }
   
   loadConfig(): void {
-    // Load config from data attributes
     const configAttr = this.getAttribute('config');
     if (configAttr) {
       try {
@@ -64,6 +65,7 @@ export class FeedbackWidget extends HTMLElement {
             ...(userConfig.theme || {})
           }
         };
+        this.isFullPage = !!userConfig.defaultFullPage;
       } catch (e) {
         console.error('Invalid config format:', e);
       }
@@ -219,6 +221,60 @@ export class FeedbackWidget extends HTMLElement {
           height: 16px;
           fill: currentColor;
         }
+
+        .capture-options {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-top: 10px;
+          color: #9CA3AF;
+          font-size: 14px;
+        }
+
+        .toggle-switch {
+          position: relative;
+          display: inline-block;
+          width: 36px;
+          height: 20px;
+        }
+
+        .toggle-switch input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+        }
+
+        .toggle-slider {
+          position: absolute;
+          cursor: pointer;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: #4B5563;
+          transition: .4s;
+          border-radius: 20px;
+        }
+
+        .toggle-slider:before {
+          position: absolute;
+          content: "";
+          height: 16px;
+          width: 16px;
+          left: 2px;
+          bottom: 2px;
+          background-color: white;
+          transition: .4s;
+          border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+          background-color: #4F46E5;
+        }
+
+        input:checked + .toggle-slider:before {
+          transform: translateX(16px);
+        }
       </style>
       
       <div class="widget-container">
@@ -233,6 +289,14 @@ export class FeedbackWidget extends HTMLElement {
           <form id="feedback-form">
             <div id="screenshot-preview"></div>
             
+            <div class="capture-options">
+              <label class="toggle-switch">
+                <input type="checkbox" id="full-page-toggle" ${this.isFullPage ? 'checked' : ''}>
+                <span class="toggle-slider"></span>
+              </label>
+              <span>Capture full page</span>
+            </div>
+
             <textarea 
               placeholder="Describe your feedback here..."
               required
@@ -299,6 +363,12 @@ export class FeedbackWidget extends HTMLElement {
       target.style.height = 'auto';
       target.style.height = Math.min(target.scrollHeight, window.innerHeight * 0.4) + 'px';
     });
+
+    const fullPageToggle = this.shadow.getElementById('full-page-toggle');
+    fullPageToggle?.addEventListener('change', (e) => {
+      this.isFullPage = (e.target as HTMLInputElement).checked;
+      this.takeScreenshot();
+    });
   }
   
   toggleModal(): void {
@@ -314,43 +384,254 @@ export class FeedbackWidget extends HTMLElement {
   
   async takeScreenshot(): Promise<void> {
     try {
-      const canvas = await html2canvas(document.documentElement, {
-        backgroundColor: null,
+      // Pre-screenshot preparation
+      const prepareDynamicContent = () => {
+        // Force all custom web fonts to load
+        document.fonts?.ready;
+        
+        // Force all images to load
+        const images = Array.from(document.images);
+        return Promise.all(images.map(img => {
+          if (img.complete) return Promise.resolve();
+          return new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+          });
+        }));
+      };
+
+      // Wait for dynamic content to be ready
+      await prepareDynamicContent();
+
+      const baseOptions = {
+        backgroundColor: '#ffffff',
         foreignObjectRendering: true,
         useCORS: true,
         allowTaint: false,
-        ignoreElements: (element) => {
-          return element.tagName.toLowerCase() === 'feedback-widget';
+        logging: false,
+        scale: window.devicePixelRatio || 1,
+        removeContainer: false,
+        // Improved canvas rendering quality
+        imageTimeout: 2000,
+        pixelRatio: window.devicePixelRatio,
+        // Better SVG handling
+        svgRendering: true,
+        // Improved text rendering
+        letterRendering: true,
+        // Handle fixed position elements better
+        windowWidth: document.documentElement.clientWidth,
+        windowHeight: document.documentElement.clientHeight,
+        // Ignore the feedback widget itself
+        ignoreElements: (element: Element) => {
+          return element.tagName.toLowerCase() === 'feedback-widget' ||
+                 (element instanceof HTMLElement && element.style.display === 'none');
         },
-        onclone: async (clonedDoc) => {
-          // Force input values to be rendered
-          clonedDoc.querySelectorAll('input, textarea, select').forEach((elem: Element) => {
-            if (elem instanceof HTMLInputElement) {
-              elem.setAttribute('value', elem.value);
-              if (elem.type === 'checkbox' || elem.type === 'radio') {
-                if (elem.checked) {
-                  elem.setAttribute('checked', 'checked');
+        onclone: async (clonedDoc: Document) => {
+          // Helper function to copy all computed styles
+          const copyComputedStyles = (originalElement: Element, clonedElement: HTMLElement) => {
+            const computedStyle = window.getComputedStyle(originalElement);
+            for (const prop of computedStyle) {
+              try {
+                const value = computedStyle.getPropertyValue(prop);
+                if (value && value !== 'initial' && value !== 'none') {
+                  clonedElement.style.setProperty(prop, value, 'important');
+                }
+              } catch (e) {
+                // Some properties might not be settable, skip them
+              }
+            }
+
+            // Handle pseudo-elements and states
+            ['::before', '::after', ':hover', ':focus', ':active', '::placeholder'].forEach(pseudo => {
+              const pseudoStyle = window.getComputedStyle(originalElement, pseudo);
+              const styleText = Array.from(pseudoStyle).map(prop => {
+                const value = pseudoStyle.getPropertyValue(prop);
+                if (value && value !== 'initial' && value !== 'none') {
+                  return `${prop}: ${value} !important;`;
+                }
+                return '';
+              }).filter(Boolean).join('\n');
+
+              if (styleText) {
+                const styleEl = clonedDoc.createElement('style');
+                styleEl.textContent = `
+                  #${clonedElement.id}${pseudo} {
+                    ${styleText}
+                  }
+                `;
+                clonedDoc.head.appendChild(styleEl);
+              }
+            });
+          };
+
+          // Copy all font faces to ensure correct font rendering
+          const fontFaces = Array.from(document.styleSheets)
+            .filter(sheet => {
+              try {
+                return sheet.cssRules; // This will throw if it's a cross-origin stylesheet
+              } catch (e) {
+                return false;
+              }
+            })
+            .flatMap(sheet => Array.from(sheet.cssRules))
+            .filter(rule => rule instanceof CSSFontFaceRule)
+            .map(rule => rule.cssText);
+
+          if (fontFaces.length > 0) {
+            const fontFaceStyle = clonedDoc.createElement('style');
+            fontFaceStyle.textContent = fontFaces.join('\n');
+            clonedDoc.head.appendChild(fontFaceStyle);
+          }
+
+          // Handle form elements
+          clonedDoc.querySelectorAll('input, textarea, select').forEach((clonedElem: Element) => {
+            if (clonedElem instanceof HTMLInputElement || clonedElem instanceof HTMLTextAreaElement) {
+              if (!clonedElem.id) {
+                clonedElem.id = `clone-${Math.random().toString(36).substr(2, 9)}`;
+              }
+
+              const selector = clonedElem.id ? 
+                `#${clonedElem.id}` : 
+                `${clonedElem.tagName.toLowerCase()}[name="${clonedElem.getAttribute('name') || ''}"]`;
+              
+              const originalElem = document.querySelector(selector);
+              
+              if (originalElem && clonedElem instanceof HTMLElement) {
+                copyComputedStyles(originalElem, clonedElem);
+
+                // Handle placeholders
+                const placeholderStyle = clonedDoc.createElement('style');
+                placeholderStyle.textContent = `
+                  #${clonedElem.id}::placeholder {
+                    color: ${window.getComputedStyle(originalElem).color} !important;
+                    opacity: 0.7 !important;
+                  }
+                `;
+                clonedDoc.head.appendChild(placeholderStyle);
+
+                // Copy input values
+                if (clonedElem instanceof HTMLInputElement) {
+                  clonedElem.value = (originalElem as HTMLInputElement).value;
+                  if (clonedElem.type === 'checkbox' || clonedElem.type === 'radio') {
+                    clonedElem.checked = (originalElem as HTMLInputElement).checked;
+                  }
+                } else if (clonedElem instanceof HTMLTextAreaElement) {
+                  clonedElem.value = (originalElem as HTMLTextAreaElement).value;
                 }
               }
-            } else if (elem instanceof HTMLTextAreaElement) {
-              elem.innerHTML = elem.value;
-            } else if (elem instanceof HTMLSelectElement) {
-              Array.from(elem.options).forEach((option, index) => {
-                if (index === elem.selectedIndex) {
-                  option.setAttribute('selected', 'selected');
-                } else {
-                  option.removeAttribute('selected');
-                }
-              });
+            } else if (clonedElem instanceof HTMLSelectElement) {
+              const originalSelect = document.querySelector(`select[name="${clonedElem.getAttribute('name')}"]`);
+              if (originalSelect instanceof HTMLSelectElement) {
+                clonedElem.value = originalSelect.value;
+              }
             }
           });
 
-          // Give the browser a moment to render the changes
-          await new Promise(resolve => setTimeout(resolve, 100));
+          // Handle iframes
+          clonedDoc.querySelectorAll('iframe').forEach(iframe => {
+            try {
+              if (iframe.contentDocument) {
+                const style = document.createElement('style');
+                style.textContent = Array.from(iframe.contentDocument.styleSheets)
+                  .flatMap(sheet => Array.from(sheet.cssRules))
+                  .map(rule => rule.cssText)
+                  .join('\n');
+                iframe.contentDocument.head.appendChild(style);
+              }
+            } catch (e) {
+              // Cross-origin iframe, can't access content
+            }
+          });
+
+          // Add a delay to ensure all styles are applied
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
-      });
+      };
+
+      const docElement = document.documentElement;
+      const body = document.body;
+
+      // Calculate dimensions including borders and padding
+      const computeFullHeight = (element: Element): number => {
+        if (element instanceof HTMLElement) {
+          const styles = window.getComputedStyle(element);
+          const marginTop = parseFloat(styles.marginTop);
+          const marginBottom = parseFloat(styles.marginBottom);
+          const height = element.getBoundingClientRect().height;
+          return height + marginTop + marginBottom;
+        }
+        return 0;
+      };
+
+      // Calculate full page dimensions
+      const contentHeight = Math.max(
+        Array.from(body.children).reduce((acc, el) => acc + computeFullHeight(el), 0),
+        docElement.scrollHeight,
+        body.scrollHeight,
+        window.innerHeight
+      );
       
-      const imgData: string = canvas.toDataURL('image/png');
+      const contentWidth = Math.max(
+        body.getBoundingClientRect().width,
+        docElement.getBoundingClientRect().width,
+        docElement.scrollWidth,
+        body.scrollWidth,
+        window.innerWidth
+      );
+
+      const options = {
+        ...baseOptions,
+        width: contentWidth,
+        height: contentHeight,
+        windowWidth: contentWidth,
+        windowHeight: contentHeight,
+        x: 0,
+        y: 0,
+        scrollX: window.scrollX,
+        scrollY: window.scrollY
+      };
+
+      let resultCanvas = await html2canvas(document.documentElement, options);
+      
+      if (!this.isFullPage) {
+        // For viewport screenshots, create a new canvas with just the visible portion
+        const viewportCanvas = document.createElement('canvas');
+        const ctx = viewportCanvas.getContext('2d', { alpha: false });
+        
+        if (ctx) {
+          const scale = window.devicePixelRatio || 1;
+          const scrollY = window.scrollY || window.pageYOffset || docElement.scrollTop || 0;
+          
+          viewportCanvas.width = window.innerWidth * scale;
+          viewportCanvas.height = window.innerHeight * scale;
+          
+          // Fill background first
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, viewportCanvas.width, viewportCanvas.height);
+          
+          // Enable image smoothing
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          
+          // Draw only the visible portion
+          ctx.drawImage(
+            resultCanvas,
+            0,
+            scrollY * scale,
+            window.innerWidth * scale,
+            window.innerHeight * scale,
+            0,
+            0,
+            window.innerWidth * scale,
+            window.innerHeight * scale
+          );
+          
+          resultCanvas = viewportCanvas;
+        }
+      }
+      
+      // Optimize image quality
+      const imgData: string = resultCanvas.toDataURL('image/png', 1.0);
       const previewEl = this.shadow.getElementById('screenshot-preview');
       const captureButton = this.shadow.querySelector('.capture-button');
       
