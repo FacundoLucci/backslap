@@ -121,13 +121,18 @@ export class FeedbackWidget extends HTMLElement {
           position: fixed;
           bottom: 80px;
           right: 20px;
-          background: #1F2937; /* Dark background */
+          background: #1F2937;
           border-radius: 8px;
           box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-          padding: 24px; /* Increased padding */
-          width: 320px;
+          padding: 24px;
+          width: calc(100vw - 88px);
+          max-width: 320px;
+          min-width: 252px;
           display: none;
-          color: #E5E7EB; /* Light text for dark background */
+          color: #E5E7EB;
+          max-height: calc(100vh - 120px);
+          overflow-y: auto;
+          overscroll-behavior: contain;
         }
         
         .feedback-modal.open {
@@ -138,28 +143,95 @@ export class FeedbackWidget extends HTMLElement {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 15px;
+          margin-bottom: 8px;
+          margin-top: -6px;
+          margin-right: -6px;
         }
         
-        .close-button {
+        .header-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        
+        .header-title h3 {
+          margin: 0;
+          color: #F3F4F6;
+          font-size: 1.125rem;
+          font-weight: 500;
+        }
+        
+        .header-actions {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
+        
+        .settings-button, .close-button {
           background: none;
           border: none;
           cursor: pointer;
-          font-size: 20px;
-          color: #9CA3AF; /* Lighter close button */
+          padding: 4px;
+          color: #9CA3AF;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 4px;
+          transition: all 0.2s;
+          width: 28px;
+          height: 28px;
         }
         
-        .modal-header h3 {
-          color: #F3F4F6; /* Lighter color for header */
-          margin: 0;
-          font-size: 1.125rem;
+        .settings-button:hover, .close-button:hover {
+          color: #E5E7EB;
+          background: #374151;
+        }
+        
+        .settings-button svg {
+          width: 20px;
+          height: 20px;
+        }
+        
+        .close-button {
+          font-size: 20px;
+          line-height: 1;
+        }
+        
+        .settings-panel {
+          display: none;
+          background: #374151;
+          border-radius: 6px;
+          padding: 16px;
+          margin: 12px 0;
+        }
+        
+        .settings-panel.open {
+          display: block;
+        }
+        
+        .settings-option {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #E5E7EB;
+          font-size: 14px;
+        }
+        
+        .settings-button.active {
+          color: #818CF8;
+          background: #1F2937;
+        }
+        
+        .settings-button.active:hover {
+          color: #A5B4FC;
         }
         
         textarea {
           width: 100%;
           min-height: 100px;
           max-height: 40vh;
-          margin: 10px 0;
+          margin-top: 10px;
+          margin-bottom: 0;
           padding: 8px;
           border: 1px solid #4B5563;
           border-radius: 4px;
@@ -179,18 +251,49 @@ export class FeedbackWidget extends HTMLElement {
           margin-top: 10px;
           border: 1px solid #4B5563;
           border-radius: 4px;
+          max-height: 40vh;
+          object-fit: contain;
+        }
+
+        .screenshot-actions {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          margin-top: 4px;
+        }
+
+        .screenshot-hint {
+          font-size: 12px;
+          color: #9CA3AF;
+          text-align: left;
+        }
+
+        .try-advanced {
+          color: #818CF8;
+          text-decoration: underline;
+          cursor: pointer;
+          background: none;
+          border: none;
+          padding: 0;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .try-advanced:hover {
+          color: #A5B4FC;
         }
         
         .actions {
           display: flex;
           gap: 10px;
           margin-top: 15px;
+          align-items: center;
         }
         
         .submit-button {
           background: #4F46E5;
           color: white;
-          border: none;
+          border: 1px solid #4338CA;
           padding: 8px 16px;
           border-radius: 4px;
           cursor: pointer;
@@ -199,21 +302,32 @@ export class FeedbackWidget extends HTMLElement {
           justify-content: center;
           gap: 6px;
           flex: 1;
+          height: 36px;
+          box-sizing: border-box;
         }
         
         .capture-button {
           background: #374151;
           border: 1px solid #4B5563;
-          padding: 8px 16px;
+          padding: 8px;
           border-radius: 4px;
           cursor: pointer;
           color: #E5E7EB;
           display: none;
-          white-space: nowrap;
-          display: flex;
           align-items: center;
           gap: 6px;
           flex: 0 0 auto;
+          min-width: 0;
+          height: 36px;
+          box-sizing: border-box;
+        }
+
+        .capture-button svg {
+          width: 16px;
+          height: 16px;
+          stroke-width: 2;
+          stroke: currentColor;
+          fill: none;
         }
         
         .capture-button.show {
@@ -224,6 +338,7 @@ export class FeedbackWidget extends HTMLElement {
           font-size: 12px;
           color: #9CA3AF;
           white-space: nowrap;
+          margin-left: 4px;
         }
 
         .send-icon {
@@ -292,19 +407,37 @@ export class FeedbackWidget extends HTMLElement {
         
         <div class="feedback-modal">
           <div class="modal-header">
-            <h3>${theme.modalTitle ?? 'Send Feedback'}</h3>
-            <button class="close-button">&times;</button>
+            <div class="header-title">
+              <h3>${theme.modalTitle ?? 'Send Feedback'}</h3>
+              <button class="settings-button" aria-label="Settings">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            <div class="header-actions">
+              <button class="close-button">&times;</button>
+            </div>
           </div>
           
           <form id="feedback-form">
+            <div class="settings-panel">
+              <div class="settings-option">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="full-page-toggle" ${this.isFullPage ? 'checked' : ''}>
+                  <span class="toggle-slider"></span>
+                </label>
+                <span>Capture full page</span>
+              </div>
+            </div>
+
             <div id="screenshot-preview"></div>
             
-            <div class="capture-options">
-              <label class="toggle-switch">
-                <input type="checkbox" id="full-page-toggle" ${this.isFullPage ? 'checked' : ''}>
-                <span class="toggle-slider"></span>
-              </label>
-              <span>Capture full page</span>
+            <div class="screenshot-actions">
+              <div class="screenshot-hint">
+                <button class="try-advanced">Look off? Try advanced capture mode</button>
+              </div>
             </div>
 
             <textarea 
@@ -314,8 +447,14 @@ export class FeedbackWidget extends HTMLElement {
             
             <div class="actions">
               <button type="button" class="capture-button">
-                <span>Retake Screenshot</span>
-                <span class="shortcut-hint">(⌘/Ctrl + R)</span>
+                <svg viewBox="0 0 16 16" fill="none">
+                  <path d="M6,1 L2,1 L2,5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M1,10 L1,14 L5,14" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M10,15 L14,15 L14,11" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M15,6 L15,2 L11,2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Retake</span>
+                <span class="shortcut-hint">⌘/Ctrl + R</span>
               </button>
               <button type="submit" class="submit-button">
                 <span>Send</span>
@@ -353,11 +492,23 @@ export class FeedbackWidget extends HTMLElement {
     const captureButton = this.shadow.querySelector('.capture-button');
     const feedbackForm = this.shadow.getElementById('feedback-form');
     const textarea = this.shadow.querySelector('textarea');
+    const tryAdvancedButton = this.shadow.querySelector('.try-advanced');
+    const settingsButton = this.shadow.querySelector('.settings-button');
+    const settingsPanel = this.shadow.querySelector('.settings-panel');
     
     feedbackButton?.addEventListener('click', () => this.toggleModal());
     closeButton?.addEventListener('click', () => this.toggleModal());
     captureButton?.addEventListener('click', () => this.takeScreenshot());
     feedbackForm?.addEventListener('submit', (e) => this.handleSubmit(e));
+    
+    tryAdvancedButton?.addEventListener('click', () => {
+      this.takeScreenshot(true);
+    });
+
+    settingsButton?.addEventListener('click', () => {
+      settingsButton.classList.toggle('active');
+      settingsPanel?.classList.toggle('open');
+    });
     
     // Add keyboard shortcut for retaking screenshot
     window.addEventListener('keydown', (e) => {
@@ -564,7 +715,35 @@ export class FeedbackWidget extends HTMLElement {
     }
   }
   
-  async takeScreenshot(): Promise<void> {
+  private async captureScreenViaAPI(): Promise<string> {
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: {
+        displaySurface: 'browser',
+      },
+      audio: false,
+      preferCurrentTab: true,
+      selfBrowserSurface: 'include',
+      surfaceSwitching: 'exclude',
+      monitorTypeSurfaces: 'include'
+    } as ExtendedDisplayMediaStreamOptions);
+
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    await video.play();
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Could not get canvas context');
+    
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    stream.getTracks().forEach(track => track.stop());
+    
+    return canvas.toDataURL('image/png');
+  }
+
+  async takeScreenshot(useScreenCaptureAPI: boolean = false): Promise<void> {
     const feedbackModal = this.shadow.querySelector('.feedback-modal') as HTMLElement;
     const originalDisplay = feedbackModal?.style.display || '';
 
@@ -576,78 +755,16 @@ export class FeedbackWidget extends HTMLElement {
         feedbackModal.style.display = 'none';
       }
 
-      try {
-        // Try Screen Capture API first
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            displaySurface: 'browser',
-          },
-          audio: false,
-          preferCurrentTab: true,
-          selfBrowserSurface: 'include',
-          surfaceSwitching: 'exclude',
-          monitorTypeSurfaces: 'include'
-        } as ExtendedDisplayMediaStreamOptions);
-
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        await video.play();
-
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('Could not get canvas context');
-        
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        stream.getTracks().forEach(track => track.stop());
-        
-        imgData = canvas.toDataURL('image/png');
-      } catch (screenCaptureError) {
-        console.log('Screen Capture API failed, falling back to DOM clone method');
-        
-        // Get the canvas with the cloned document
-        const resultCanvas = await this.prepareDynamicContent();
-
-        // Store current scroll position and calculate dimensions
-        const scrollX = window.scrollX;
-        const scrollY = window.scrollY;
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-        
-        if (!this.isFullPage) {
-          // Create canvas for viewport screenshot
-          const croppedCanvas = document.createElement('canvas');
-          const ctx = croppedCanvas.getContext('2d');
-          if (!ctx) throw new Error('Could not get canvas context');
-
-          const dpr = window.devicePixelRatio || 1;
-          croppedCanvas.width = viewportWidth * dpr;
-          croppedCanvas.height = viewportHeight * dpr;
-
-          // Calculate the exact scroll position considering DPR and offset
-          const sourceX = Math.round(scrollX * dpr);
-          const sourceY = Math.round((scrollY - FeedbackWidget.VIEWPORT_OFFSET) * dpr);
-          const sourceWidth = Math.round(viewportWidth * dpr);
-          const sourceHeight = Math.round(viewportHeight * dpr);
-
-          // Draw the cropped portion
-          ctx.drawImage(
-            resultCanvas,
-            sourceX,
-            sourceY,
-            sourceWidth,
-            sourceHeight,
-            0,
-            0,
-            sourceWidth,
-            sourceHeight
-          );
-
-          imgData = croppedCanvas.toDataURL('image/png', 1.0);
-        } else {
-          imgData = resultCanvas.toDataURL('image/png', 1.0);
+      if (useScreenCaptureAPI) {
+        try {
+          imgData = await this.captureScreenViaAPI();
+        } catch (error) {
+          console.error('Screen Capture API failed:', error);
+          // Fall back to DOM clone method if screen capture fails
+          imgData = await this.captureViaHTML();
         }
+      } else {
+        imgData = await this.captureViaHTML();
       }
 
       // Update preview with captured image
@@ -671,6 +788,51 @@ export class FeedbackWidget extends HTMLElement {
       if (feedbackModal) {
         feedbackModal.style.display = originalDisplay;
       }
+    }
+  }
+  
+  private async captureViaHTML(): Promise<string> {
+    // Get the canvas with the cloned document
+    const resultCanvas = await this.prepareDynamicContent();
+
+    // Store current scroll position and calculate dimensions
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    if (!this.isFullPage) {
+      // Create canvas for viewport screenshot
+      const croppedCanvas = document.createElement('canvas');
+      const ctx = croppedCanvas.getContext('2d');
+      if (!ctx) throw new Error('Could not get canvas context');
+
+      const dpr = window.devicePixelRatio || 1;
+      croppedCanvas.width = viewportWidth * dpr;
+      croppedCanvas.height = viewportHeight * dpr;
+
+      // Calculate the exact scroll position considering DPR and offset
+      const sourceX = Math.round(scrollX * dpr);
+      const sourceY = Math.round((scrollY - FeedbackWidget.VIEWPORT_OFFSET) * dpr);
+      const sourceWidth = Math.round(viewportWidth * dpr);
+      const sourceHeight = Math.round(viewportHeight * dpr);
+
+      // Draw the cropped portion
+      ctx.drawImage(
+        resultCanvas,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        0,
+        0,
+        sourceWidth,
+        sourceHeight
+      );
+
+      return croppedCanvas.toDataURL('image/png', 1.0);
+    } else {
+      return resultCanvas.toDataURL('image/png', 1.0);
     }
   }
   
