@@ -1,0 +1,10 @@
+---
+description: Knowing the goal of the app. 
+globs: 
+---
+Backslap is a an opensource feedbackwidget that developers and nontechnicals can use to allow their users to provide feedback. The widget need to work univerally across all devices, website, platforms, and apps. The main.ts file acts as a test for the feedback widget.
+
+# Your rule content
+
+- You can @ files here
+- You can use markdown but dont have to

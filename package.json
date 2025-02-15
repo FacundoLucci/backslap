@@ -26,11 +26,10 @@
   "author": "Your Name",
   "license": "MIT",
   "dependencies": {
-    "html2canvas": "^1.4.1"
+    "html-to-image": "^1.11.11"
   },
   "devDependencies": {
     "@eslint/js": "^8.56.0",
-    "@types/html2canvas": "^1.0.0",
     "@types/jsdom": "^21.1.7",
     "@types/node": "^22.13.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",

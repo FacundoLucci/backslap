@@ -12,10 +12,10 @@ export default defineConfig({
       formats: ['es', 'umd'],
     },
     rollupOptions: {
-      external: ['html2canvas'],
+      external: ['html-to-image'],
       output: {
         globals: {
-          html2canvas: 'html2canvas',
+          'html-to-image': 'htmlToImage',
         },
       },
     },

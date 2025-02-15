@@ -1,4 +1,12 @@
-import html2canvas from 'html2canvas';
+import { toCanvas } from 'html-to-image';
+
+// Extend DisplayMediaStreamOptions type to include additional properties
+interface ExtendedDisplayMediaStreamOptions extends DisplayMediaStreamOptions {
+  preferCurrentTab?: boolean;
+  selfBrowserSurface?: 'include' | 'exclude';
+  surfaceSwitching?: 'include' | 'exclude';
+  monitorTypeSurfaces?: 'include' | 'exclude';
+}
 
 export interface FeedbackWidgetConfig {
   apiEndpoint?: string;
@@ -33,6 +41,8 @@ export class FeedbackWidget extends HTMLElement {
     }
   };
   private isFullPage: boolean = false;
+  // Vertical offset for viewport screenshot (in pixels, before DPR)
+  private static readonly VIEWPORT_OFFSET = 2;
 
   static get observedAttributes() {
     return ['config'];
@@ -382,256 +392,265 @@ export class FeedbackWidget extends HTMLElement {
     }
   }
   
-  async takeScreenshot(): Promise<void> {
-    try {
-      // Pre-screenshot preparation
-      const prepareDynamicContent = () => {
-        // Force all custom web fonts to load
-        document.fonts?.ready;
-        
-        // Force all images to load
-        const images = Array.from(document.images);
-        return Promise.all(images.map(img => {
-          if (img.complete) return Promise.resolve();
-          return new Promise((resolve, reject) => {
-            img.onload = resolve;
-            img.onerror = reject;
-          });
-        }));
-      };
+  private async prepareDynamicContent(): Promise<HTMLCanvasElement> {
+    // Force all custom web fonts to load
+    await document.fonts?.ready;
+    
+    // Force all images to load
+    const images = Array.from(document.images);
+    await Promise.all(images.map(img => {
+      if (img.complete) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+    }));
 
-      // Wait for dynamic content to be ready
-      await prepareDynamicContent();
-
-      const baseOptions = {
-        backgroundColor: '#ffffff',
-        foreignObjectRendering: true,
-        useCORS: true,
-        allowTaint: false,
-        logging: false,
-        scale: window.devicePixelRatio || 1,
-        removeContainer: false,
-        // Improved canvas rendering quality
-        imageTimeout: 2000,
-        pixelRatio: window.devicePixelRatio,
-        // Better SVG handling
-        svgRendering: true,
-        // Improved text rendering
-        letterRendering: true,
-        // Handle fixed position elements better
-        windowWidth: document.documentElement.clientWidth,
-        windowHeight: document.documentElement.clientHeight,
-        // Ignore the feedback widget itself
-        ignoreElements: (element: Element) => {
-          return element.tagName.toLowerCase() === 'feedback-widget' ||
-                 (element instanceof HTMLElement && element.style.display === 'none');
-        },
-        onclone: async (clonedDoc: Document) => {
-          // Helper function to copy all computed styles
-          const copyComputedStyles = (originalElement: Element, clonedElement: HTMLElement) => {
-            const computedStyle = window.getComputedStyle(originalElement);
-            for (const prop of computedStyle) {
-              try {
-                const value = computedStyle.getPropertyValue(prop);
-                if (value && value !== 'initial' && value !== 'none') {
-                  clonedElement.style.setProperty(prop, value, 'important');
-                }
-              } catch (e) {
-                // Some properties might not be settable, skip them
-              }
-            }
-
-            // Handle pseudo-elements and states
-            ['::before', '::after', ':hover', ':focus', ':active', '::placeholder'].forEach(pseudo => {
-              const pseudoStyle = window.getComputedStyle(originalElement, pseudo);
-              const styleText = Array.from(pseudoStyle).map(prop => {
-                const value = pseudoStyle.getPropertyValue(prop);
-                if (value && value !== 'initial' && value !== 'none') {
-                  return `${prop}: ${value} !important;`;
-                }
-                return '';
-              }).filter(Boolean).join('\n');
-
-              if (styleText) {
-                const styleEl = clonedDoc.createElement('style');
-                styleEl.textContent = `
-                  #${clonedElement.id}${pseudo} {
-                    ${styleText}
-                  }
-                `;
-                clonedDoc.head.appendChild(styleEl);
-              }
-            });
-          };
-
-          // Copy all font faces to ensure correct font rendering
-          const fontFaces = Array.from(document.styleSheets)
-            .filter(sheet => {
-              try {
-                return sheet.cssRules; // This will throw if it's a cross-origin stylesheet
-              } catch (e) {
-                return false;
-              }
-            })
-            .flatMap(sheet => Array.from(sheet.cssRules))
-            .filter(rule => rule instanceof CSSFontFaceRule)
-            .map(rule => rule.cssText);
-
-          if (fontFaces.length > 0) {
-            const fontFaceStyle = clonedDoc.createElement('style');
-            fontFaceStyle.textContent = fontFaces.join('\n');
-            clonedDoc.head.appendChild(fontFaceStyle);
-          }
-
-          // Handle form elements
-          clonedDoc.querySelectorAll('input, textarea, select').forEach((clonedElem: Element) => {
-            if (clonedElem instanceof HTMLInputElement || clonedElem instanceof HTMLTextAreaElement) {
-              if (!clonedElem.id) {
-                clonedElem.id = `clone-${Math.random().toString(36).substr(2, 9)}`;
-              }
-
-              const selector = clonedElem.id ? 
-                `#${clonedElem.id}` : 
-                `${clonedElem.tagName.toLowerCase()}[name="${clonedElem.getAttribute('name') || ''}"]`;
-              
-              const originalElem = document.querySelector(selector);
-              
-              if (originalElem && clonedElem instanceof HTMLElement) {
-                copyComputedStyles(originalElem, clonedElem);
-
-                // Handle placeholders
-                const placeholderStyle = clonedDoc.createElement('style');
-                placeholderStyle.textContent = `
-                  #${clonedElem.id}::placeholder {
-                    color: ${window.getComputedStyle(originalElem).color} !important;
-                    opacity: 0.7 !important;
-                  }
-                `;
-                clonedDoc.head.appendChild(placeholderStyle);
-
-                // Copy input values
-                if (clonedElem instanceof HTMLInputElement) {
-                  clonedElem.value = (originalElem as HTMLInputElement).value;
-                  if (clonedElem.type === 'checkbox' || clonedElem.type === 'radio') {
-                    clonedElem.checked = (originalElem as HTMLInputElement).checked;
-                  }
-                } else if (clonedElem instanceof HTMLTextAreaElement) {
-                  clonedElem.value = (originalElem as HTMLTextAreaElement).value;
-                }
-              }
-            } else if (clonedElem instanceof HTMLSelectElement) {
-              const originalSelect = document.querySelector(`select[name="${clonedElem.getAttribute('name')}"]`);
-              if (originalSelect instanceof HTMLSelectElement) {
-                clonedElem.value = originalSelect.value;
-              }
-            }
-          });
-
-          // Handle iframes
-          clonedDoc.querySelectorAll('iframe').forEach(iframe => {
-            try {
-              if (iframe.contentDocument) {
-                const style = document.createElement('style');
-                style.textContent = Array.from(iframe.contentDocument.styleSheets)
-                  .flatMap(sheet => Array.from(sheet.cssRules))
-                  .map(rule => rule.cssText)
-                  .join('\n');
-                iframe.contentDocument.head.appendChild(style);
-              }
-            } catch (e) {
-              // Cross-origin iframe, can't access content
-            }
-          });
-
-          // Add a delay to ensure all styles are applied
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      };
-
-      const docElement = document.documentElement;
-      const body = document.body;
-
-      // Calculate dimensions including borders and padding
-      const computeFullHeight = (element: Element): number => {
-        if (element instanceof HTMLElement) {
-          const styles = window.getComputedStyle(element);
-          const marginTop = parseFloat(styles.marginTop);
-          const marginBottom = parseFloat(styles.marginBottom);
-          const height = element.getBoundingClientRect().height;
-          return height + marginTop + marginBottom;
-        }
-        return 0;
-      };
-
-      // Calculate full page dimensions
-      const contentHeight = Math.max(
-        Array.from(body.children).reduce((acc, el) => acc + computeFullHeight(el), 0),
-        docElement.scrollHeight,
-        body.scrollHeight,
-        window.innerHeight
-      );
+    // Create a deep clone of the document for capturing
+    const clone = document.documentElement.cloneNode(true) as HTMLElement;
+    
+    // Add global styles for placeholders
+    const globalStyle = document.createElement('style');
+    globalStyle.textContent = `
+      input::placeholder,
+      textarea::placeholder {
+        -webkit-text-fill-color: currentColor;
+        opacity: 1 !important;
+      }
+    `;
+    clone.appendChild(globalStyle);
+    
+    // Copy computed styles to the clone
+    const copyStyles = (source: HTMLElement, target: HTMLElement) => {
+      const computedStyle = window.getComputedStyle(source);
+      const targetStyle = target.style;
       
-      const contentWidth = Math.max(
-        body.getBoundingClientRect().width,
-        docElement.getBoundingClientRect().width,
-        docElement.scrollWidth,
-        body.scrollWidth,
-        window.innerWidth
-      );
+      // Copy all computed styles
+      for (let i = 0; i < computedStyle.length; i++) {
+        const property = computedStyle[i];
+        const value = computedStyle.getPropertyValue(property);
+        targetStyle.setProperty(property, value);
+      }
 
-      const options = {
-        ...baseOptions,
-        width: contentWidth,
-        height: contentHeight,
-        windowWidth: contentWidth,
-        windowHeight: contentHeight,
-        x: 0,
-        y: 0,
-        scrollX: window.scrollX,
-        scrollY: window.scrollY
-      };
-
-      let resultCanvas = await html2canvas(document.documentElement, options);
-      
-      if (!this.isFullPage) {
-        // For viewport screenshots, create a new canvas with just the visible portion
-        const viewportCanvas = document.createElement('canvas');
-        const ctx = viewportCanvas.getContext('2d', { alpha: false });
-        
-        if (ctx) {
-          const scale = window.devicePixelRatio || 1;
-          const scrollY = window.scrollY || window.pageYOffset || docElement.scrollTop || 0;
-          
-          viewportCanvas.width = window.innerWidth * scale;
-          viewportCanvas.height = window.innerHeight * scale;
-          
-          // Fill background first
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, viewportCanvas.width, viewportCanvas.height);
-          
-          // Enable image smoothing
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          
-          // Draw only the visible portion
-          ctx.drawImage(
-            resultCanvas,
-            0,
-            scrollY * scale,
-            window.innerWidth * scale,
-            window.innerHeight * scale,
-            0,
-            0,
-            window.innerWidth * scale,
-            window.innerHeight * scale
-          );
-          
-          resultCanvas = viewportCanvas;
+      // Copy CSS custom properties (variables)
+      for (const property of computedStyle) {
+        if (property.startsWith('--')) {
+          const value = computedStyle.getPropertyValue(property);
+          targetStyle.setProperty(property, value);
         }
       }
+
+      // Special handling for form elements
+      if (source instanceof HTMLInputElement || source instanceof HTMLTextAreaElement || source instanceof HTMLSelectElement) {
+        const formElement = source;
+        const clonedFormElement = target;
+        
+        // Copy form element specific properties
+        if (formElement instanceof HTMLInputElement || formElement instanceof HTMLTextAreaElement) {
+          (clonedFormElement as HTMLInputElement | HTMLTextAreaElement).value = formElement.value;
+          
+          // Handle placeholder styles
+          const placeholder = formElement.getAttribute('placeholder');
+          if (placeholder) {
+            const computedStyle = window.getComputedStyle(formElement);
+            const computedPlaceholderStyle = window.getComputedStyle(formElement, '::placeholder');
+            
+            // Create a unique class for this element
+            const uniqueClass = `placeholder-${Math.random().toString(36).substring(7)}`;
+            clonedFormElement.classList.add(uniqueClass);
+            
+            // Create style element for this specific element
+            const styleEl = document.createElement('style');
+            styleEl.textContent = `
+              .${uniqueClass} {
+                background-color: ${computedStyle.backgroundColor} !important;
+                color: ${computedStyle.color} !important;
+              }
+              .${uniqueClass}::placeholder {
+                color: ${computedPlaceholderStyle.color} !important;
+                opacity: ${computedPlaceholderStyle.opacity || '1'} !important;
+                -webkit-text-fill-color: ${computedPlaceholderStyle.color} !important;
+              }
+            `;
+            
+            // Add the style element to the clone
+            clone.appendChild(styleEl);
+          }
+        }
+        
+        if (formElement instanceof HTMLInputElement && (formElement.type === 'checkbox' || formElement.type === 'radio')) {
+          (clonedFormElement as HTMLInputElement).checked = formElement.checked;
+        } else if (formElement instanceof HTMLSelectElement) {
+          (clonedFormElement as HTMLSelectElement).selectedIndex = formElement.selectedIndex;
+        }
+      }
+
+      // Recursively copy styles for children
+      for (let i = 0; i < source.children.length; i++) {
+        if (source.children[i] instanceof HTMLElement && 
+            target.children[i] instanceof HTMLElement) {
+          copyStyles(
+            source.children[i] as HTMLElement,
+            target.children[i] as HTMLElement
+          );
+        }
+      }
+    };
+
+    // Copy styles from original document to clone
+    copyStyles(document.documentElement, clone);
+
+    // Get our feedback button
+    const feedbackButton = this.shadow.querySelector('.feedback-button') as HTMLElement;
+    const buttonRect = feedbackButton?.getBoundingClientRect();
+    
+    // Create a clone of our button with exact styles
+    if (feedbackButton && buttonRect) {
+      const buttonClone = document.createElement('button');
+      buttonClone.textContent = feedbackButton.textContent || '';
       
-      // Optimize image quality
-      const imgData: string = resultCanvas.toDataURL('image/png', 1.0);
+      // Copy computed styles from our button
+      const buttonStyle = window.getComputedStyle(feedbackButton);
+      Object.values(buttonStyle).forEach(property => {
+        buttonClone.style.setProperty(property, buttonStyle.getPropertyValue(property));
+      });
+
+      // Position the clone exactly where our button is, accounting for scroll position
+      const absoluteLeft = buttonRect.left + window.scrollX;
+      const absoluteTop = buttonRect.top + window.scrollY;
+
+      buttonClone.style.position = 'absolute';  // Changed from 'fixed' to 'absolute'
+      buttonClone.style.left = absoluteLeft + 'px';
+      buttonClone.style.top = absoluteTop + 'px';
+      buttonClone.style.width = buttonRect.width + 'px';
+      buttonClone.style.height = buttonRect.height + 'px';
+      buttonClone.style.zIndex = '10000';
+
+      // Add the button clone to our cloned document
+      clone.appendChild(buttonClone);
+    }
+
+    // Remove our feedback widget from the clone (except the button clone we just added)
+    const widgetClone = clone.querySelector('feedback-widget');
+    widgetClone?.remove();
+
+    // Create a temporary container for the clone
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    container.style.width = document.documentElement.scrollWidth + 'px';
+    container.style.height = document.documentElement.scrollHeight + 'px';
+    container.appendChild(clone);
+    document.body.appendChild(container);
+
+    try {
+      // Use the clone for html-to-image capture
+      const resultCanvas = await toCanvas(clone, {
+        backgroundColor: window.getComputedStyle(document.body).backgroundColor || '#ffffff',
+        skipFonts: false,
+        pixelRatio: window.devicePixelRatio || 1,
+        width: document.documentElement.scrollWidth,
+        height: document.documentElement.scrollHeight
+      });
+
+      // Clean up the temporary container
+      document.body.removeChild(container);
+
+      return resultCanvas;
+    } catch (error) {
+      // Clean up on error
+      document.body.removeChild(container);
+      throw error;
+    }
+  }
+  
+  async takeScreenshot(): Promise<void> {
+    const feedbackModal = this.shadow.querySelector('.feedback-modal') as HTMLElement;
+    const originalDisplay = feedbackModal?.style.display || '';
+
+    try {
+      let imgData: string;
+
+      // Hide the feedback modal before capture
+      if (feedbackModal) {
+        feedbackModal.style.display = 'none';
+      }
+
+      try {
+        // Try Screen Capture API first
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            displaySurface: 'browser',
+          },
+          audio: false,
+          preferCurrentTab: true,
+          selfBrowserSurface: 'include',
+          surfaceSwitching: 'exclude',
+          monitorTypeSurfaces: 'include'
+        } as ExtendedDisplayMediaStreamOptions);
+
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        await video.play();
+
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Could not get canvas context');
+        
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        stream.getTracks().forEach(track => track.stop());
+        
+        imgData = canvas.toDataURL('image/png');
+      } catch (screenCaptureError) {
+        console.log('Screen Capture API failed, falling back to DOM clone method');
+        
+        // Get the canvas with the cloned document
+        const resultCanvas = await this.prepareDynamicContent();
+
+        // Store current scroll position and calculate dimensions
+        const scrollX = window.scrollX;
+        const scrollY = window.scrollY;
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        if (!this.isFullPage) {
+          // Create canvas for viewport screenshot
+          const croppedCanvas = document.createElement('canvas');
+          const ctx = croppedCanvas.getContext('2d');
+          if (!ctx) throw new Error('Could not get canvas context');
+
+          const dpr = window.devicePixelRatio || 1;
+          croppedCanvas.width = viewportWidth * dpr;
+          croppedCanvas.height = viewportHeight * dpr;
+
+          // Calculate the exact scroll position considering DPR and offset
+          const sourceX = Math.round(scrollX * dpr);
+          const sourceY = Math.round((scrollY - FeedbackWidget.VIEWPORT_OFFSET) * dpr);
+          const sourceWidth = Math.round(viewportWidth * dpr);
+          const sourceHeight = Math.round(viewportHeight * dpr);
+
+          // Draw the cropped portion
+          ctx.drawImage(
+            resultCanvas,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight,
+            0,
+            0,
+            sourceWidth,
+            sourceHeight
+          );
+
+          imgData = croppedCanvas.toDataURL('image/png', 1.0);
+        } else {
+          imgData = resultCanvas.toDataURL('image/png', 1.0);
+        }
+      }
+
+      // Update preview with captured image
       const previewEl = this.shadow.getElementById('screenshot-preview');
       const captureButton = this.shadow.querySelector('.capture-button');
       
@@ -647,6 +666,11 @@ export class FeedbackWidget extends HTMLElement {
       }
     } catch (error) {
       console.error('Error capturing screenshot:', error);
+    } finally {
+      // Restore the feedback modal visibility
+      if (feedbackModal) {
+        feedbackModal.style.display = originalDisplay;
+      }
     }
   }
   
