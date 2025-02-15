@@ -1,6 +1,6 @@
 {
   "name": "backslap",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "BackSlap - A lightweight feedback widget for your web applications",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
