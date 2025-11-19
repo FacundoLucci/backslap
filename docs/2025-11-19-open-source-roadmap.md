@@ -52,14 +52,14 @@ _Last updated: 2025-11-19_
 - **Proposed flow**
   1. Feedback ingested → classify via lightweight LLM service (priority, component, bug vs idea).
   2. Matching rules decide action:
-     - `bug` with repo mapping → call GitHub App to open/append issue or PR comment referencing screenshot URL.
-     - `feature` → add to product backlog (Linear/Jira) with metadata.
-  3. For GitHub issues requiring rapid fixes, emit a Cursor Background Agent job payload (JSON) stored in repo under `.cursor/tasks/{id}.json`.
-  4. Background Agent watches bucket/webhook, pulls tasks, spins temporary branches (via Cursor automation) to implement fixes or create reproduction harnesses.
-  5. When agent opens PR, attach original feedback context (message, screenshot link, user env) + traceability ID.
+     - `bug` events trigger a `@backslap/cursor-agent` package (separate npm module) that pulls the classified payload, scaffolds a reproduction harness, and asks Cursor Background Agents to open a PR directly (no issue mirroring).
+     - `feature` / `idea` events push to backlog tools (Linear/Jira) with enriched metadata.
+  3. For PR-worthy bugs, emit Cursor agent job payloads (JSON) stored in repo under `.cursor/tasks/{id}.json`, referencing the widget package version and feedback ID.
+  4. Background Agent watches the repo (or webhook), pulls tasks, spins temporary branches (via Cursor automation) to implement fixes or add failing tests, then opens PRs.
+  5. Each PR body includes the user feedback message, screenshot link, environment metadata, and traceability IDs so maintainers can audit provenance.
 - **Minimal MVP**
-  - Build webhook service: `/integrations/github/pr-comment`.
-  - Provide CLI (`backslap sync --cursor`) that fetches new feedback and writes `.cursor/rules/feedback-{date}.md` instructions so Cursor agent has context during future sessions.
+  - Ship `@backslap/cursor-agent` CLI/daemon that authenticates against BackSlap Cloud, fetches new feedback events, and writes `.cursor/tasks/*.json` recipes to the repo.
+  - Provide `backslap sync --cursor` command to hydrate `.cursor/rules/feedback-{date}.md` context files so Cursor agents have the latest customer inputs when generating PRs.
 
 ## 6. Implementation Plan (12–16 weeks)
 - **Phase 0 – Hardening (2 wks)**
@@ -87,4 +87,4 @@ _Last updated: 2025-11-19_
 ## 9. Immediate Next Actions
 1. Land widget refactors + accessibility fixes, expand Vitest suite, and publish new minor release.
 2. Bootstrap platform monorepo + infra templates; secure staging cloud resources.
-3. Prototype ingest API + GitHub issue mirroring, then iterate towards Cursor background agent contract.
+3. Prototype ingest API + `@backslap/cursor-agent` package that converts fresh feedback into Cursor-ready PR tasks end to end.
