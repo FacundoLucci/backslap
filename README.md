@@ -195,3 +195,25 @@ If you need help or have any questions:
 - Usage-based pricing
 
 Visit our [pricing page](https://backslap.io/pricing) to compare options.
+
+## Cursor Cloud Agent Bridge (Updated 2025-11-19)
+
+Automate fixes by piping BackSlap feedback straight into [Cursor Cloud Agents](https://cursor.com/docs/cloud-agent/api/endpoints):
+
+- **Env vars**
+  - `CURSOR_API_KEY` – Basic auth key from the Cursor dashboard
+  - `CURSOR_REPOSITORY` – GitHub repo URL (e.g. `https://github.com/your-org/your-repo`)
+  - Optional: `CURSOR_REF`, `CURSOR_MODEL`, `CURSOR_AUTO_CREATE_PR` (default `true`), `CURSOR_BRANCH_TEMPLATE`, `CURSOR_WEBHOOK_URL`, `CURSOR_WEBHOOK_SECRET`, `CURSOR_DRY_RUN`
+- **Feedback payload**: Provide a JSON array (see `data/sample-feedback.json`) with the fields gathered by the widget (`id`, `message`, `url`, `userAgent`, etc.).
+- **Run the bridge**
+
+  ```bash
+  # Dry run (no agents launched)
+  CURSOR_DRY_RUN=1 CURSOR_API_KEY=xxx CURSOR_REPOSITORY=https://github.com/your-org/your-repo npm run cursor:bridge data/sample-feedback.json
+
+  # Launch agents for each feedback entry
+  CURSOR_API_KEY=xxx CURSOR_REPOSITORY=https://github.com/your-org/your-repo npm run cursor:bridge /path/to/exported-feedback.json
+  ```
+
+- The script builds a rich prompt (severity, metadata, acceptance criteria), optionally attaches screenshots, and asks Cursor to auto-create a PR per feedback.
+- Extend or host it as a daemon to poll BackSlap Cloud and continuously feed Cursor with high-signal events. See `docs/2025-11-19-open-source-roadmap.md` for the full automation plan.
