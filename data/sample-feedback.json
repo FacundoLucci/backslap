@@ -1,0 +1,16 @@
+[
+  {
+    "id": "fbk-001",
+    "message": "When clicking the Send Feedback button on Firefox the modal opens partially off screen and I can't scroll.",
+    "screenshot": null,
+    "timestamp": "2025-11-19T03:12:00.000Z",
+    "url": "https://example.com/dashboard",
+    "userAgent": "Firefox/120.0",
+    "metadata": {
+      "plan": "pro",
+      "accountId": "acct-123"
+    },
+    "severity": "high",
+    "category": "bug"
+  }
+]

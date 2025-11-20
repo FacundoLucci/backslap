@@ -12,7 +12,7 @@ export interface FeedbackConfig {
 
 export interface FeedbackData {
   message: string;
-  screenshot?: string;
+  screenshot?: string | null;
   timestamp: string;
   url: string;
   userAgent: string;
